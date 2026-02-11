@@ -13,26 +13,36 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Clock, Users, Heart, History } from "lucide-react"
+import { Clock, Users, Heart, History, Package, AlertCircle } from "lucide-react"
 
-interface AuctionItem {
-  id: string
+export interface AuctionItem {
+  auction_item_id: number
+  auction_id: number
+  item_id: number
   title: string
-  image: string
-  currentBid: number
-  bidCount: number
-  endsAt: Date
-  category: string
+  description: string | null
+  usd_value: number
+  starting_price: number
+  status: string
+  auction_name: string
+  auction_status: string
+  scheduled_ends_at: string
+  ends_at: string | null
+  image_url: string | null
+  bid_count: number
+  highest_bid: number | null
 }
 
 interface BidRecord {
-  bidder: string
+  bid_id: number
   amount: number
-  timestamp: string
+  status: string
+  created_at: string
+  display_name: string
 }
 
-function getTimeRemaining(endsAt: Date) {
-  const total = endsAt.getTime() - Date.now()
+function getTimeRemaining(endsAt: string) {
+  const total = new Date(endsAt).getTime() - Date.now()
   if (total <= 0) return { hours: 0, minutes: 0, seconds: 0, expired: true }
 
   const hours = Math.floor(total / (1000 * 60 * 60))
@@ -42,47 +52,22 @@ function getTimeRemaining(endsAt: Date) {
   return { hours, minutes, seconds, expired: false }
 }
 
-// Mock bid history per auction
-const mockBidHistory: Record<string, BidRecord[]> = {
-  "1": [
-    { bidder: "John D.", amount: 12500, timestamp: "Feb 10, 2026 3:42:18 PM" },
-    { bidder: "Sarah M.", amount: 12000, timestamp: "Feb 10, 2026 2:15:44 PM" },
-    { bidder: "Emma W.", amount: 11500, timestamp: "Feb 9, 2026 10:20:55 AM" },
-  ],
-  "2": [
-    { bidder: "Mike J.", amount: 3200, timestamp: "Feb 10, 2026 1:30:22 PM" },
-    { bidder: "Alex K.", amount: 2900, timestamp: "Feb 9, 2026 5:12:30 PM" },
-  ],
-  "3": [
-    { bidder: "Emma W.", amount: 2800, timestamp: "Feb 10, 2026 12:05:11 PM" },
-    { bidder: "John D.", amount: 2500, timestamp: "Feb 9, 2026 8:45:00 AM" },
-  ],
-  "4": [
-    { bidder: "Sarah M.", amount: 18500, timestamp: "Feb 10, 2026 11:30:00 AM" },
-    { bidder: "Mike J.", amount: 17800, timestamp: "Feb 9, 2026 3:22:15 PM" },
-  ],
-  "5": [
-    { bidder: "John D.", amount: 45000, timestamp: "Feb 8, 2026 5:58:47 PM" },
-    { bidder: "Alex K.", amount: 44500, timestamp: "Feb 8, 2026 5:45:30 PM" },
-    { bidder: "Emma W.", amount: 43000, timestamp: "Feb 8, 2026 4:10:22 PM" },
-  ],
-  "6": [
-    { bidder: "Mike J.", amount: 4200, timestamp: "Feb 10, 2026 9:15:00 AM" },
-    { bidder: "Sarah M.", amount: 3800, timestamp: "Feb 9, 2026 7:00:00 PM" },
-  ],
-}
-
 export function AuctionCard({ item }: { item: AuctionItem }) {
-  const [timeRemaining, setTimeRemaining] = useState(getTimeRemaining(item.endsAt))
+  const endTime = item.ends_at || item.scheduled_ends_at
+  const [timeRemaining, setTimeRemaining] = useState(getTimeRemaining(endTime))
   const [isFavourited, setIsFavourited] = useState(false)
   const [bidAmount, setBidAmount] = useState("")
+  const [bidHistory, setBidHistory] = useState<BidRecord[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  const [bidError, setBidError] = useState("")
+  const [bidLoading, setBidLoading] = useState(false)
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setTimeRemaining(getTimeRemaining(item.endsAt))
+      setTimeRemaining(getTimeRemaining(endTime))
     }, 1000)
     return () => clearInterval(interval)
-  }, [item.endsAt])
+  }, [endTime])
 
   const formatTime = () => {
     if (timeRemaining.expired) return "Ended"
@@ -91,21 +76,99 @@ export function AuctionCard({ item }: { item: AuctionItem }) {
     return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
   }
 
-  const bidHistory = mockBidHistory[item.id] || []
+  const currentBid = item.highest_bid ? item.highest_bid / 100 : item.starting_price / 100
+  const minBid = currentBid + 1
+
+  const fetchBidHistory = async () => {
+    setLoadingHistory(true)
+    try {
+      const res = await fetch(`/api/auctions/bids?auctionItemId=${item.auction_item_id}`)
+      const data = await res.json()
+      setBidHistory(data.bids || [])
+    } catch {
+      setBidHistory([])
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
+
+  const handleFavourite = async () => {
+    const newState = !isFavourited
+    setIsFavourited(newState)
+    try {
+      if (newState) {
+        await fetch("/api/account/favorites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ itemId: item.item_id }),
+        })
+      } else {
+        await fetch("/api/account/favorites", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ itemId: item.item_id }),
+        })
+      }
+    } catch {
+      setIsFavourited(!newState)
+    }
+  }
+
+  const handlePlaceBid = async () => {
+    const amount = Math.round(Number.parseFloat(bidAmount) * 100)
+    if (!amount || amount < minBid * 100) {
+      setBidError(`Minimum bid is $${minBid.toLocaleString()}`)
+      return
+    }
+
+    setBidLoading(true)
+    setBidError("")
+
+    try {
+      const res = await fetch("/api/auctions/place-bid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          auctionItemId: item.auction_item_id,
+          auctionId: item.auction_id,
+          amount,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        setBidError(data.error || "Failed to place bid")
+        return
+      }
+
+      setBidAmount("")
+      setBidError("")
+    } catch {
+      setBidError("Network error")
+    } finally {
+      setBidLoading(false)
+    }
+  }
 
   return (
     <Card className="group overflow-hidden border-border bg-card transition-all hover:border-muted-foreground/30">
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
-        <img
-          src={item.image || "/placeholder.svg"}
-          alt={item.title}
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-        />
+        {item.image_url ? (
+          <img
+            src={item.image_url || "/placeholder.svg"}
+            alt={item.title}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <Package className="h-12 w-12 text-muted-foreground" />
+          </div>
+        )}
         <Badge className="absolute left-3 top-3 bg-background/90 text-foreground backdrop-blur">
-          {item.category}
+          {item.auction_name}
         </Badge>
         <button
-          onClick={() => setIsFavourited(!isFavourited)}
+          onClick={handleFavourite}
           className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-background/90 backdrop-blur transition-colors hover:bg-background"
           aria-label={isFavourited ? "Remove from wishlist" : "Add to wishlist"}
         >
@@ -126,20 +189,20 @@ export function AuctionCard({ item }: { item: AuctionItem }) {
           </div>
           <div className="flex items-center gap-1 text-muted-foreground">
             <Users className="h-3.5 w-3.5" />
-            <span>{item.bidCount} bids</span>
+            <span>{item.bid_count} bids</span>
           </div>
         </div>
 
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs text-muted-foreground">Current Bid</p>
-            <p className="text-lg font-semibold">${item.currentBid.toLocaleString()}</p>
+            <p className="text-lg font-semibold">${currentBid.toLocaleString()}</p>
           </div>
           <div className="flex items-center gap-1.5">
             {/* Bid History Dialog */}
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={fetchBidHistory}>
                   <History className="h-4 w-4" />
                   <span className="sr-only">View bid history</span>
                 </Button>
@@ -150,24 +213,35 @@ export function AuctionCard({ item }: { item: AuctionItem }) {
                   <DialogDescription>{item.title}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {bidHistory.length > 0 ? (
-                    bidHistory.map((bid, idx) => (
+                  {loadingHistory ? (
+                    <p className="text-center text-sm text-muted-foreground py-4">Loading...</p>
+                  ) : bidHistory.length > 0 ? (
+                    bidHistory.map((bid) => (
                       <div
-                        key={idx}
+                        key={bid.bid_id}
                         className="flex items-center justify-between rounded-lg border border-border bg-secondary/50 p-3"
                       >
                         <div>
-                          <p className="text-sm font-medium">{bid.bidder}</p>
+                          <p className="text-sm font-medium">{bid.display_name}</p>
                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
                             <Clock className="h-3 w-3" />
-                            <span>{bid.timestamp}</span>
+                            <span>
+                              {new Date(bid.created_at).toLocaleString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                                hour: "numeric",
+                                minute: "2-digit",
+                                second: "2-digit",
+                              })}
+                            </span>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold">${bid.amount.toLocaleString()}</p>
-                          {idx === 0 && (
+                          <p className="font-semibold">${(bid.amount / 100).toLocaleString()}</p>
+                          {bid.status === "WINNING" || bid.status === "ACTIVE" ? (
                             <Badge className="bg-emerald-500/20 text-emerald-400 text-xs">Highest</Badge>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     ))
@@ -191,27 +265,35 @@ export function AuctionCard({ item }: { item: AuctionItem }) {
                   <DialogDescription>{item.title}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
+                  {bidError && (
+                    <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>{bidError}</span>
+                    </div>
+                  )}
                   <div className="rounded-lg border border-border bg-secondary/50 p-3">
                     <p className="text-sm text-muted-foreground">Current highest bid</p>
-                    <p className="text-2xl font-bold">${item.currentBid.toLocaleString()}</p>
+                    <p className="text-2xl font-bold">${currentBid.toLocaleString()}</p>
                   </div>
                   <div className="space-y-2">
-                    <label htmlFor={`bid-${item.id}`} className="text-sm font-medium">
+                    <label htmlFor={`bid-${item.auction_item_id}`} className="text-sm font-medium">
                       Your bid amount ($)
                     </label>
                     <Input
-                      id={`bid-${item.id}`}
+                      id={`bid-${item.auction_item_id}`}
                       type="number"
-                      placeholder={`Min $${(item.currentBid + 100).toLocaleString()}`}
+                      placeholder={`Min $${minBid.toLocaleString()}`}
                       value={bidAmount}
                       onChange={(e) => setBidAmount(e.target.value)}
                       className="bg-secondary border-border"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Minimum bid: ${(item.currentBid + 100).toLocaleString()}
+                      Minimum bid: ${minBid.toLocaleString()}
                     </p>
                   </div>
-                  <Button className="w-full">Confirm Bid</Button>
+                  <Button className="w-full" onClick={handlePlaceBid} disabled={bidLoading}>
+                    {bidLoading ? "Placing bid..." : "Confirm Bid"}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>

@@ -1,78 +1,41 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import { Header } from "@/components/header"
 import { AuctionCard } from "@/components/auction-card"
+import type { AuctionItem } from "@/components/auction-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Search, ArrowRight, TrendingUp, Shield, Clock } from "lucide-react"
-
-const categories = [
-  "All",
-  "Electronics",
-  "Art & Collectibles",
-  "Jewelry",
-  "Vehicles",
-  "Fashion",
-  "Home & Garden",
-]
-
-const featuredAuctions = [
-  {
-    id: "1",
-    title: "Vintage Rolex Submariner 1968",
-    image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&h=400&fit=crop",
-    currentBid: 12500,
-    bidCount: 47,
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 4),
-    category: "Jewelry",
-  },
-  {
-    id: "2",
-    title: "Original Oil Painting - Abstract Seascape",
-    image: "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=600&h=400&fit=crop",
-    currentBid: 3200,
-    bidCount: 23,
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 12),
-    category: "Art & Collectibles",
-  },
-  {
-    id: "3",
-    title: "MacBook Pro M3 Max 16\" - Sealed",
-    image: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&h=400&fit=crop",
-    currentBid: 2800,
-    bidCount: 31,
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 2),
-    category: "Electronics",
-  },
-  {
-    id: "4",
-    title: "Hermès Birkin Bag 35cm - Black Togo",
-    image: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=600&h=400&fit=crop",
-    currentBid: 18500,
-    bidCount: 62,
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 8),
-    category: "Fashion",
-  },
-  {
-    id: "5",
-    title: "1967 Ford Mustang Fastback",
-    image: "https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=600&h=400&fit=crop",
-    currentBid: 45000,
-    bidCount: 89,
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-    category: "Vehicles",
-  },
-  {
-    id: "6",
-    title: "Mid-Century Modern Eames Lounge Chair",
-    image: "https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=600&h=400&fit=crop",
-    currentBid: 4200,
-    bidCount: 18,
-    endsAt: new Date(Date.now() + 1000 * 60 * 60 * 6),
-    category: "Home & Garden",
-  },
-]
+import { Search, ArrowRight, TrendingUp, Shield, Clock, Loader2, Package } from "lucide-react"
 
 export default function HomePage() {
+  const [auctions, setAuctions] = useState<AuctionItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
+
+  useEffect(() => {
+    async function fetchAuctions() {
+      try {
+        const res = await fetch("/api/auctions")
+        const data = await res.json()
+        setAuctions(data.items || [])
+      } catch {
+        setAuctions([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchAuctions()
+  }, [])
+
+  const filteredAuctions = searchQuery
+    ? auctions.filter(
+        (a) =>
+          a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          a.auction_name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : auctions
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -96,6 +59,8 @@ export default function HomePage() {
                   type="search"
                   placeholder="Search auctions..."
                   className="h-11 pl-10 bg-secondary border-border"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
               <Button size="lg" className="h-11 gap-2">
@@ -107,61 +72,34 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="border-b border-border bg-card">
-        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-4 px-4 py-8 sm:px-6 md:grid-cols-4 lg:px-8">
-          <div className="text-center">
-            <p className="text-2xl font-bold sm:text-3xl">15K+</p>
-            <p className="text-sm text-muted-foreground">Active Auctions</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold sm:text-3xl">$2.4M</p>
-            <p className="text-sm text-muted-foreground">Items Sold</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold sm:text-3xl">50K+</p>
-            <p className="text-sm text-muted-foreground">Happy Bidders</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold sm:text-3xl">99.2%</p>
-            <p className="text-sm text-muted-foreground">Satisfaction Rate</p>
-          </div>
-        </div>
-      </section>
-
-      {/* Categories */}
-      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-center gap-2">
-          {categories.map((category, index) => (
-            <Badge
-              key={category}
-              variant={index === 0 ? "default" : "secondary"}
-              className="cursor-pointer px-4 py-1.5 text-sm transition-colors hover:bg-primary hover:text-primary-foreground"
-            >
-              {category}
-            </Badge>
-          ))}
-        </div>
-      </section>
-
       {/* Featured Auctions */}
-      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-semibold">Featured Auctions</h2>
-            <p className="text-sm text-muted-foreground">Hot items ending soon</p>
+            <h2 className="text-2xl font-semibold">Live Auctions</h2>
+            <p className="text-sm text-muted-foreground">Browse items from the database</p>
           </div>
-          <Button variant="ghost" className="gap-2">
-            View All
-            <ArrowRight className="h-4 w-4" />
-          </Button>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {featuredAuctions.map((item) => (
-            <AuctionCard key={item.id} item={item} />
-          ))}
-        </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : filteredAuctions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <Package className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-lg font-medium">No auctions found</p>
+            <p className="text-sm text-muted-foreground">
+              {searchQuery ? "Try a different search term" : "Check back later for new items"}
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredAuctions.map((item) => (
+              <AuctionCard key={item.auction_item_id} item={item} />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Features */}

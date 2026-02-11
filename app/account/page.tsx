@@ -1,23 +1,19 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   User,
   Settings,
   Package,
   Heart,
-  CreditCard,
-  Bell,
   LogOut,
-  Camera,
   Clock,
   TrendingUp,
   Award,
@@ -28,151 +24,159 @@ import {
   DollarSign,
   Plus,
   Minus,
+  Loader2,
 } from "lucide-react"
 
-const userStats = {
-  totalBids: 127,
-  auctionsWon: 23,
-  watchlist: 14,
-  memberSince: "March 2024",
-  balance: 24350.0,
+interface SessionUser {
+  userId: number
+  email: string
+  displayName: string
+  role: string
 }
 
-const recentBids = [
-  {
-    id: "1",
-    item: "Vintage Rolex Submariner 1968",
-    bidAmount: 12500,
-    status: "winning",
-    image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&h=100&fit=crop",
-    endsIn: "4h 23m",
-    bidTimestamp: "Feb 10, 2026 at 3:42:18 PM",
-  },
-  {
-    id: "2",
-    item: "Original Oil Painting - Abstract Seascape",
-    bidAmount: 3000,
-    status: "outbid",
-    image: "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=100&h=100&fit=crop",
-    endsIn: "12h 45m",
-    bidTimestamp: "Feb 9, 2026 at 11:15:03 AM",
-  },
-  {
-    id: "3",
-    item: "1967 Ford Mustang Fastback",
-    bidAmount: 42000,
-    status: "won",
-    image: "https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=100&h=100&fit=crop",
-    endsIn: "Ended",
-    bidTimestamp: "Feb 8, 2026 at 9:58:47 PM",
-  },
-]
+interface WalletData {
+  available_balance: number
+  held_balance: number
+}
 
-const wonAuctions = [
-  {
-    id: "1",
-    item: "1967 Ford Mustang Fastback",
-    finalPrice: 45000,
-    date: "Jan 15, 2026",
-    image: "https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=100&h=100&fit=crop",
-    status: "Payment Pending",
-  },
-  {
-    id: "2",
-    item: "Antique Victorian Writing Desk",
-    finalPrice: 2800,
-    date: "Jan 10, 2026",
-    image: "https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=100&h=100&fit=crop",
-    status: "Shipped",
-  },
-]
+interface LedgerEntry {
+  ledger_id: number
+  delta: number
+  reason: string
+  auction_id: number | null
+  created_at: string
+}
 
-const transactions = [
-  {
-    id: "t1",
-    type: "deposit",
-    description: "Wallet Top-Up",
-    amount: 10000,
-    date: "Feb 10, 2026",
-    time: "2:30 PM",
-    method: "Visa *4242",
-  },
-  {
-    id: "t2",
-    type: "bid_payment",
-    description: "Won: Antique Victorian Writing Desk",
-    amount: -2800,
-    date: "Feb 8, 2026",
-    time: "10:15 AM",
-    method: "Wallet Balance",
-  },
-  {
-    id: "t3",
-    type: "deposit",
-    description: "Wallet Top-Up",
-    amount: 5000,
-    date: "Feb 5, 2026",
-    time: "4:00 PM",
-    method: "Visa *4242",
-  },
-  {
-    id: "t4",
-    type: "refund",
-    description: "Refund: Outbid on Oil Painting",
-    amount: 3200,
-    date: "Feb 3, 2026",
-    time: "8:22 AM",
-    method: "Wallet Balance",
-  },
-  {
-    id: "t5",
-    type: "bid_payment",
-    description: "Won: Vintage Camera Collection",
-    amount: -1450,
-    date: "Jan 28, 2026",
-    time: "6:10 PM",
-    method: "Wallet Balance",
-  },
-  {
-    id: "t6",
-    type: "deposit",
-    description: "Wallet Top-Up",
-    amount: 15000,
-    date: "Jan 20, 2026",
-    time: "12:00 PM",
-    method: "Bank Transfer",
-  },
-]
+interface BidEntry {
+  bid_id: number
+  amount: number
+  status: string
+  created_at: string
+  auction_name: string
+  item_title: string
+  auction_item_id: number
+  auction_status: string
+  scheduled_ends_at: string
+}
 
-const wishlistItems = [
-  {
-    id: "w1",
-    title: "Vintage Leica M3 Camera",
-    image: "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=100&h=100&fit=crop",
-    currentBid: 4200,
-    endsIn: "2d 5h",
-    category: "Electronics",
-  },
-  {
-    id: "w2",
-    title: "First Edition Harry Potter Book Set",
-    image: "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=100&h=100&fit=crop",
-    currentBid: 8500,
-    endsIn: "1d 12h",
-    category: "Art & Collectibles",
-  },
-  {
-    id: "w3",
-    title: "Handcrafted Japanese Tea Set",
-    image: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=100&h=100&fit=crop",
-    currentBid: 750,
-    endsIn: "8h 30m",
-    category: "Home & Garden",
-  },
-]
+interface WishlistItem {
+  item_id: number
+  title: string
+  description: string | null
+  usd_value: number
+  created_at: string
+  image_url: string | null
+}
+
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr)
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+}
+
+function formatTime(dateStr: string) {
+  const d = new Date(dateStr)
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })
+}
+
+function formatDateTime(dateStr: string) {
+  return `${formatDate(dateStr)} at ${formatTime(dateStr)}`
+}
+
+function reasonLabel(reason: string) {
+  const labels: Record<string, string> = {
+    DEPOSIT: "Wallet Top-Up",
+    HOLD_PLACED: "Bid Hold Placed",
+    HOLD_RELEASED: "Bid Hold Released",
+    BID_WON: "Auction Won - Payment",
+    REFUND: "Refund",
+    WITHDRAWAL: "Withdrawal",
+  }
+  return labels[reason] || reason.replace(/_/g, " ")
+}
 
 export default function AccountPage() {
-  const [isEditing, setIsEditing] = useState(false)
+  const router = useRouter()
+  const [user, setUser] = useState<SessionUser | null>(null)
+  const [wallet, setWallet] = useState<WalletData | null>(null)
+  const [ledger, setLedger] = useState<LedgerEntry[]>([])
+  const [bids, setBids] = useState<BidEntry[]>([])
+  const [wishlist, setWishlist] = useState<WishlistItem[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchData = useCallback(async () => {
+    try {
+      const sessionRes = await fetch("/api/auth/session")
+      const sessionData = await sessionRes.json()
+
+      if (!sessionData.user) {
+        router.push("/login")
+        return
+      }
+
+      setUser(sessionData.user)
+
+      const [walletRes, bidsRes, wishlistRes] = await Promise.all([
+        fetch("/api/account/wallet"),
+        fetch("/api/account/bids"),
+        fetch("/api/account/wishlist"),
+      ])
+
+      const [walletData, bidsData, wishlistData] = await Promise.all([
+        walletRes.json(),
+        bidsRes.json(),
+        wishlistRes.json(),
+      ])
+
+      setWallet(walletData.wallet || { available_balance: 0, held_balance: 0 })
+      setLedger(walletData.ledger || [])
+      setBids(bidsData.bids || [])
+      setWishlist(wishlistData.items || [])
+    } catch (error) {
+      console.error("Failed to fetch account data:", error)
+    } finally {
+      setLoading(false)
+    }
+  }, [router])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" })
+    router.push("/login")
+  }
+
+  const handleRemoveWishlist = async (itemId: number) => {
+    await fetch("/api/account/wishlist", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId }),
+    })
+    setWishlist((prev) => prev.filter((i) => i.item_id !== itemId))
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (!user) return null
+
+  const initials = user.displayName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2)
+
+  const balance = wallet ? wallet.available_balance / 100 : 0
+  const heldBalance = wallet ? wallet.held_balance / 100 : 0
+  const activeBids = bids.filter((b) => b.status === "ACTIVE" || b.status === "WINNING")
+  const wonBids = bids.filter((b) => b.status === "WINNING" && b.auction_status === "CLOSED")
 
   return (
     <div className="min-h-screen bg-background">
@@ -182,23 +186,15 @@ export default function AccountPage() {
         {/* Profile Header */}
         <div className="mb-8 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <div className="relative">
-              <Avatar className="h-20 w-20 border-2 border-border">
-                <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop" />
-                <AvatarFallback className="bg-secondary text-foreground text-xl">JD</AvatarFallback>
-              </Avatar>
-              <button className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground">
-                <Camera className="h-3.5 w-3.5" />
-                <span className="sr-only">Change avatar</span>
-              </button>
-            </div>
+            <Avatar className="h-20 w-20 border-2 border-border">
+              <AvatarFallback className="bg-secondary text-foreground text-xl">{initials}</AvatarFallback>
+            </Avatar>
             <div>
-              <h1 className="text-2xl font-semibold">John Doe</h1>
-              <p className="text-muted-foreground">john.doe@example.com</p>
-              <p className="mt-1 text-sm text-muted-foreground">Member since {userStats.memberSince}</p>
+              <h1 className="text-2xl font-semibold">{user.displayName}</h1>
+              <p className="text-muted-foreground">{user.email}</p>
             </div>
           </div>
-          <Button variant="outline" className="gap-2 border-border bg-transparent">
+          <Button variant="outline" className="gap-2 border-border bg-transparent" onClick={handleLogout}>
             <LogOut className="h-4 w-4" />
             Sign Out
           </Button>
@@ -214,7 +210,14 @@ export default function AccountPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Available Balance</p>
-                  <p className="text-3xl font-bold">${userStats.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
+                  <p className="text-3xl font-bold">
+                    ${balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  </p>
+                  {heldBalance > 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      ${heldBalance.toLocaleString("en-US", { minimumFractionDigits: 2 })} held in bids
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex gap-3">
@@ -239,7 +242,7 @@ export default function AccountPage() {
                 <TrendingUp className="h-6 w-6 text-foreground" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{userStats.totalBids}</p>
+                <p className="text-2xl font-bold">{bids.length}</p>
                 <p className="text-sm text-muted-foreground">Total Bids</p>
               </div>
             </CardContent>
@@ -250,7 +253,7 @@ export default function AccountPage() {
                 <Award className="h-6 w-6 text-foreground" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{userStats.auctionsWon}</p>
+                <p className="text-2xl font-bold">{wonBids.length}</p>
                 <p className="text-sm text-muted-foreground">Auctions Won</p>
               </div>
             </CardContent>
@@ -261,7 +264,7 @@ export default function AccountPage() {
                 <Heart className="h-6 w-6 text-foreground" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{userStats.watchlist}</p>
+                <p className="text-2xl font-bold">{wishlist.length}</p>
                 <p className="text-sm text-muted-foreground">Wishlist Items</p>
               </div>
             </CardContent>
@@ -272,7 +275,7 @@ export default function AccountPage() {
                 <Clock className="h-6 w-6 text-foreground" />
               </div>
               <div>
-                <p className="text-2xl font-bold">3</p>
+                <p className="text-2xl font-bold">{activeBids.length}</p>
                 <p className="text-sm text-muted-foreground">Active Bids</p>
               </div>
             </CardContent>
@@ -312,54 +315,59 @@ export default function AccountPage() {
                 <CardDescription>Track your active and past bids with timestamps</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {recentBids.map((bid) => (
-                    <div
-                      key={bid.id}
-                      className="flex items-center gap-4 rounded-lg border border-border bg-secondary/50 p-4"
-                    >
-                      <img
-                        src={bid.image || "/placeholder.svg"}
-                        alt={bid.item}
-                        className="h-16 w-16 rounded-md object-cover"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{bid.item}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Your bid: ${bid.bidAmount.toLocaleString()}
-                        </p>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-muted-foreground">{bid.endsIn}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <History className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-muted-foreground text-xs">{bid.bidTimestamp}</span>
+                {bids.length === 0 ? (
+                  <p className="py-8 text-center text-muted-foreground">No bids yet. Start bidding on items!</p>
+                ) : (
+                  <div className="space-y-4">
+                    {bids.map((bid) => (
+                      <div
+                        key={bid.bid_id}
+                        className="flex items-center gap-4 rounded-lg border border-border bg-secondary/50 p-4"
+                      >
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary">
+                          <TrendingUp className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{bid.item_title}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Your bid: ${(bid.amount / 100).toLocaleString()}
+                          </p>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-muted-foreground text-xs">
+                                Ends: {formatDate(bid.scheduled_ends_at)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <History className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-muted-foreground text-xs">
+                                Bid placed: {formatDateTime(bid.created_at)}
+                              </span>
+                            </div>
                           </div>
                         </div>
+                        <Badge
+                          className={
+                            bid.status === "WINNING" || bid.status === "ACTIVE"
+                              ? "bg-emerald-500/20 text-emerald-400"
+                              : bid.status === "OUTBID"
+                                ? "bg-destructive/20 text-destructive"
+                                : "bg-accent/20 text-accent"
+                          }
+                        >
+                          {bid.status === "WINNING"
+                            ? "Winning"
+                            : bid.status === "ACTIVE"
+                              ? "Active"
+                              : bid.status === "OUTBID"
+                                ? "Outbid"
+                                : bid.status}
+                        </Badge>
                       </div>
-                      <Badge
-                        variant={
-                          bid.status === "winning"
-                            ? "default"
-                            : bid.status === "won"
-                              ? "secondary"
-                              : "destructive"
-                        }
-                        className={
-                          bid.status === "winning"
-                            ? "bg-emerald-500/20 text-emerald-400"
-                            : bid.status === "won"
-                              ? "bg-accent/20 text-accent"
-                              : "bg-destructive/20 text-destructive"
-                        }
-                      >
-                        {bid.status === "winning" ? "Winning" : bid.status === "won" ? "Won" : "Outbid"}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -380,37 +388,54 @@ export default function AccountPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {transactions.map((tx) => (
-                    <div
-                      key={tx.id}
-                      className="flex items-center gap-4 rounded-lg border border-border bg-secondary/50 p-4"
-                    >
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                        tx.amount > 0 ? "bg-emerald-500/20" : "bg-destructive/20"
-                      }`}>
-                        {tx.amount > 0 ? (
-                          <ArrowDownLeft className={`h-5 w-5 ${tx.amount > 0 ? "text-emerald-400" : "text-destructive"}`} />
-                        ) : (
-                          <ArrowUpRight className="h-5 w-5 text-destructive" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{tx.description}</p>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <span>{tx.date} at {tx.time}</span>
-                          <span className="text-border">|</span>
-                          <span>{tx.method}</span>
+                {ledger.length === 0 ? (
+                  <p className="py-8 text-center text-muted-foreground">No transactions yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {ledger.map((tx) => (
+                      <div
+                        key={tx.ledger_id}
+                        className="flex items-center gap-4 rounded-lg border border-border bg-secondary/50 p-4"
+                      >
+                        <div
+                          className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                            tx.delta > 0 ? "bg-emerald-500/20" : tx.delta < 0 ? "bg-destructive/20" : "bg-secondary"
+                          }`}
+                        >
+                          {tx.delta >= 0 ? (
+                            <ArrowDownLeft
+                              className={`h-5 w-5 ${tx.delta > 0 ? "text-emerald-400" : "text-muted-foreground"}`}
+                            />
+                          ) : (
+                            <ArrowUpRight className="h-5 w-5 text-destructive" />
+                          )}
                         </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{reasonLabel(tx.reason)}</p>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span>{formatDateTime(tx.created_at)}</span>
+                            {tx.auction_id && (
+                              <>
+                                <span className="text-border">|</span>
+                                <span>Auction #{tx.auction_id}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <p
+                          className={`text-lg font-semibold whitespace-nowrap ${
+                            tx.delta > 0 ? "text-emerald-400" : tx.delta < 0 ? "text-foreground" : "text-muted-foreground"
+                          }`}
+                        >
+                          {tx.delta > 0 ? "+" : ""}
+                          {tx.delta !== 0
+                            ? `$${Math.abs(tx.delta / 100).toLocaleString()}`
+                            : "--"}
+                        </p>
                       </div>
-                      <p className={`text-lg font-semibold whitespace-nowrap ${
-                        tx.amount > 0 ? "text-emerald-400" : "text-foreground"
-                      }`}>
-                        {tx.amount > 0 ? "+" : ""}${Math.abs(tx.amount).toLocaleString()}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -423,40 +448,52 @@ export default function AccountPage() {
                 <CardDescription>Items you have favourited</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {wishlistItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-4 rounded-lg border border-border bg-secondary/50 p-4"
-                    >
-                      <img
-                        src={item.image || "/placeholder.svg"}
-                        alt={item.title}
-                        className="h-16 w-16 rounded-md object-cover"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{item.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Current bid: ${item.currentBid.toLocaleString()}
-                        </p>
-                        <div className="mt-1 flex items-center gap-2 text-sm">
-                          <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="text-muted-foreground">{item.endsIn}</span>
-                          <Badge variant="secondary" className="ml-2 bg-secondary text-muted-foreground text-xs">
-                            {item.category}
-                          </Badge>
+                {wishlist.length === 0 ? (
+                  <p className="py-8 text-center text-muted-foreground">
+                    No wishlist items. Favourite items to track them here!
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {wishlist.map((item) => (
+                      <div
+                        key={item.item_id}
+                        className="flex items-center gap-4 rounded-lg border border-border bg-secondary/50 p-4"
+                      >
+                        {item.image_url ? (
+                          <img
+                            src={item.image_url || "/placeholder.svg"}
+                            alt={item.title}
+                            className="h-16 w-16 rounded-md object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-16 w-16 items-center justify-center rounded-md bg-secondary">
+                            <Package className="h-6 w-6 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{item.title}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Value: ${item.usd_value.toLocaleString()}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Added: {formatDate(item.created_at)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => handleRemoveWishlist(item.item_id)}
+                          >
+                            <Heart className="h-4 w-4 fill-current" />
+                            <span className="sr-only">Remove from wishlist</span>
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button size="sm">Place Bid</Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                          <Heart className="h-4 w-4 fill-current" />
-                          <span className="sr-only">Remove from wishlist</span>
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -469,154 +506,71 @@ export default function AccountPage() {
                 <CardDescription>{"Items you've successfully won"}</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {wonAuctions.map((auction) => (
-                    <div
-                      key={auction.id}
-                      className="flex items-center gap-4 rounded-lg border border-border bg-secondary/50 p-4"
-                    >
-                      <img
-                        src={auction.image || "/placeholder.svg"}
-                        alt={auction.item}
-                        className="h-16 w-16 rounded-md object-cover"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{auction.item}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Final price: ${auction.finalPrice.toLocaleString()}
-                        </p>
-                        <p className="text-sm text-muted-foreground">Won on {auction.date}</p>
+                {wonBids.length === 0 ? (
+                  <p className="py-8 text-center text-muted-foreground">No won auctions yet. Keep bidding!</p>
+                ) : (
+                  <div className="space-y-4">
+                    {wonBids.map((bid) => (
+                      <div
+                        key={bid.bid_id}
+                        className="flex items-center gap-4 rounded-lg border border-border bg-secondary/50 p-4"
+                      >
+                        <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-secondary">
+                          <Award className="h-6 w-6 text-accent" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{bid.item_title}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Final price: ${(bid.amount / 100).toLocaleString()}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Won on {formatDate(bid.created_at)}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="border-accent text-accent whitespace-nowrap">
+                          Won
+                        </Badge>
                       </div>
-                      <Badge variant="outline" className="border-border whitespace-nowrap">
-                        {auction.status}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
 
           {/* Settings Tab */}
           <TabsContent value="settings">
-            <div className="grid gap-6 lg:grid-cols-2">
-              <Card className="border-border bg-card">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <User className="h-5 w-5" />
-                    Profile Information
-                  </CardTitle>
-                  <CardDescription>Update your personal details</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
+            <Card className="border-border bg-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <User className="h-5 w-5" />
+                  Profile Information
+                </CardTitle>
+                <CardDescription>Your account details</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name</Label>
-                      <Input
-                        id="firstName"
-                        defaultValue="John"
-                        className="bg-secondary border-border"
-                        disabled={!isEditing}
-                      />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Display Name</p>
+                      <p className="font-medium">{user.displayName}</p>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name</Label>
-                      <Input
-                        id="lastName"
-                        defaultValue="Doe"
-                        className="bg-secondary border-border"
-                        disabled={!isEditing}
-                      />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Email</p>
+                      <p className="font-medium">{user.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Role</p>
+                      <p className="font-medium">{user.role === "REP" ? "Participant" : "Admin"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">User ID</p>
+                      <p className="font-medium">#{user.userId}</p>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      defaultValue="john.doe@example.com"
-                      className="bg-secondary border-border"
-                      disabled={!isEditing}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      defaultValue="+1 (555) 123-4567"
-                      className="bg-secondary border-border"
-                      disabled={!isEditing}
-                    />
-                  </div>
-                  <Button
-                    onClick={() => setIsEditing(!isEditing)}
-                    variant={isEditing ? "default" : "outline"}
-                    className="w-full border-border"
-                  >
-                    {isEditing ? "Save Changes" : "Edit Profile"}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border bg-card">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <CreditCard className="h-5 w-5" />
-                    Payment Methods
-                  </CardTitle>
-                  <CardDescription>Manage your payment options</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/50 p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-14 items-center justify-center rounded bg-background">
-                        <span className="text-xs font-bold">VISA</span>
-                      </div>
-                      <div>
-                        <p className="font-medium">Visa ending in 4242</p>
-                        <p className="text-sm text-muted-foreground">Expires 12/27</p>
-                      </div>
-                    </div>
-                    <Badge variant="secondary" className="bg-secondary text-foreground">Default</Badge>
-                  </div>
-                  <Button variant="outline" className="w-full border-border gap-2 bg-transparent">
-                    <CreditCard className="h-4 w-4" />
-                    Add Payment Method
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border bg-card lg:col-span-2">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Bell className="h-5 w-5" />
-                    Notification Preferences
-                  </CardTitle>
-                  <CardDescription>Choose what updates you receive</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {[
-                      { label: "Outbid notifications", description: "Get notified when someone outbids you" },
-                      { label: "Auction ending soon", description: "Reminder before auctions you're watching end" },
-                      { label: "Won auction updates", description: "Payment and shipping notifications" },
-                      { label: "New items in categories", description: "When new items match your interests" },
-                    ].map((pref, index) => (
-                      <div key={index} className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{pref.label}</p>
-                          <p className="text-sm text-muted-foreground">{pref.description}</p>
-                        </div>
-                        <Button variant="outline" size="sm" className="border-border bg-transparent">
-                          Enabled
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>
